@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "esnext",
+    "jsx": "react",
+    "lib": ["dom", "esnext"],
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "noUnusedLocals": false,
+    "esModuleInterop": true,
+
+    "baseUrl": "./src",
+    "typeRoots": ["types"]
+  },
+  "exclude": ["node_modules", "public", ".cache"]
+}
