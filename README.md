@@ -1,9 +1,6 @@
 # Library for form state management 
 
-## Run sample app
-
-```
-$ yarn
-$ yarn global add parcel
-$ parcel index.html
-```
+# TODO
+1. Calculated values
+2. Use extra values
+3. CleanValue

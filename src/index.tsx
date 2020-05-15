@@ -1,7 +1,6 @@
 import React from 'react'
 
-import { getObjectKeys, UnreachableError } from './common'
-import { useUpdateEffect } from './hooks'
+import { UnreachableError, useUpdateEffect } from './common'
 import { FieldMetaInfo, FormContext, FormProps, ProviderState, UseFieldProps } from './types'
 
 interface Register<FieldName> {
@@ -121,7 +120,6 @@ export default <Values extends object>(
     // --- CALLBACKS --- //
 
     const runValidations = React.useCallback(() => {
-      const r = getObjectKeys(state.visible).map((f) => f as keyof Values)
       const errors = Object.keys(state.visible)
         .map((field) => field as keyof Values)
         .reduce((errors: { [key in keyof Values]?: string }, field) => {
