@@ -1,19 +1,22 @@
 {
   "compilerOptions": {
+    "baseUrl": "./src",
+
     "module": "commonjs",
     "target": "esnext",
     "jsx": "react",
     "lib": ["dom", "esnext"],
-    "noEmit": false,
-    "declaration": true,
-    "strict": true,
-    "noUnusedLocals": false,
     "isolatedModules": true,
     "esModuleInterop": true,
 
-    "baseUrl": "./src",
-    "typeRoots": ["types"],
-    "outDir": "dist"
+    "noEmit": false,
+    "outDir": "dist",
+    "declarationMap": true,
+    "declarationDir": "dist",
+    "declaration": true,
+
+    "strict": true,
+    "noUnusedLocals": false
   },
-  "exclude": ["node_modules", "public", ".cache"]
+  "include": ["src"]
 }

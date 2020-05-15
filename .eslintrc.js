@@ -24,7 +24,7 @@ module.exports = {
     node: true,
     es6: true,
   },
-  plugins: ['@typescript-eslint', 'react', 'simple-import-sort'],
+  plugins: ['@typescript-eslint', 'react', 'simple-import-sort', 'react-hooks'],
   rules: {
     'react/prop-types': 'off', // Disable prop-types as we use TypeScript for type checking
     '@typescript-eslint/explicit-function-return-type': 'off',

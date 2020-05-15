@@ -1,5 +1,7 @@
 import React from 'react'
 
+import { FieldMetaInfo, FormContext, FormProps, ProviderState } from './types'
+
 export class UnreachableError extends Error {
   /* istanbul ignore next */ constructor(val: never, message: string) {
     super(`TypeScript thought we could never end up here\n${message}`)
@@ -10,6 +12,7 @@ export class UnreachableError extends Error {
 interface Register<FieldName> {
   type: 'register'
   field: FieldName
+  error: string | null
 }
 
 interface Unregister<FieldName> {
@@ -47,13 +50,18 @@ export default <Values extends object>(
   const FormContextProvider: React.FC<FormProps<Values>> = ({ children, values, setValue }) => {
     const [state, dispatch] = React.useReducer(reducer, initialProviderState)
 
+    const register = React.useCallback((field: keyof Values) => {
+      const validate = fieldMetaInfo[field].validate
+      const error = validate ? validate(values[field], values) : null
+
+      dispatch({ type: 'register', field, error: typeof error === 'string' ? error : null })
+    }, [])
+
     const context = {
       ...state,
       values,
       setValue,
-      register: (field: keyof Values) => {
-        dispatch({ type: 'register', field })
-      },
+      register,
       unregister: (field: keyof Values) => {
         dispatch({ type: 'unregister', field })
         return
