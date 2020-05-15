@@ -1,18 +1,11 @@
 import React from 'react'
 
-import { FieldMetaInfo, FormContext, FormProps, ProviderState } from './types'
-
-export class UnreachableError extends Error {
-  /* istanbul ignore next */ constructor(val: never, message: string) {
-    super(`TypeScript thought we could never end up here\n${message}`)
-    console.error(val)
-  }
-}
+import { UnreachableError } from './common'
+import { FieldMetaInfo, FormContext, FormProps, ProviderState, UseFieldProps } from './types'
 
 interface Register<FieldName> {
   type: 'register'
   field: FieldName
-  error: string | null
 }
 
 interface Unregister<FieldName> {
@@ -20,7 +13,41 @@ interface Unregister<FieldName> {
   field: FieldName
 }
 
-type Action<Values> = Register<keyof Values> | Unregister<keyof Values>
+interface SetError<FieldName> {
+  type: 'set_error'
+  field: FieldName
+  error: string
+}
+
+interface SetErrors<Values> {
+  type: 'set_errors'
+  errors: { [key in keyof Values]?: string }
+}
+
+interface TouchField<FieldName> {
+  type: 'touch_field'
+  field: FieldName
+}
+
+interface SetCachedValue<Values, FieldName extends keyof Values> {
+  type: 'set_cached_value'
+  field: FieldName
+  value: Values[FieldName]
+}
+
+interface UnsetSachedValue<FieldName> {
+  type: 'unset_cached_value'
+  field: FieldName
+}
+
+type Action<Values> =
+  | Register<keyof Values>
+  | Unregister<keyof Values>
+  | SetError<keyof Values>
+  | SetErrors<Values>
+  | TouchField<keyof Values>
+  | SetCachedValue<Values, keyof Values>
+  | UnsetSachedValue<keyof Values>
 
 export default <Values extends object>(
   fieldMetaInfo: { [key in keyof Values]: FieldMetaInfo<Values[key], Values> },
@@ -33,47 +60,145 @@ export default <Values extends object>(
 
   const reducer = (state: ProviderState<Values>, action: Action<Values>): ProviderState<Values> => {
     switch (action.type) {
-      case 'register':
+      case 'register': {
         return { ...state, visible: { ...state.visible, [action.field]: true } }
+      }
       case 'unregister': {
-        const { ...visible } = state.visible
-        const { ...errors } = state.errors
+        const visible = { ...state.visible }
+        const errors = { ...state.errors }
         delete visible[action.field]
         delete errors[action.field]
         return { ...state, visible, errors }
+      }
+      case 'set_error':
+        return { ...state, errors: { ...state.errors, [action.field]: action.error } }
+      case 'set_errors':
+        return { ...state, errors: action.errors }
+      case 'touch_field':
+        return { ...state, touched: { ...state.touched, [action.field]: true } }
+      case 'set_cached_value':
+        return { ...state, cachedValues: { ...state.cachedValues, [action.field]: action.value } }
+      case 'unset_cached_value': {
+        const cachedValues = { ...state.cachedValues }
+        delete cachedValues[action.field]
+        return { ...state, cachedValues }
       }
       default:
         throw new UnreachableError(action, 'Not all actions checked')
     }
   }
 
+  const reducerWithLog = (state: ProviderState<Values>, action: Action<Values>): ProviderState<Values> => {
+    const newState = reducer(state, action)
+
+    console.groupCollapsed(`action ${action.type}`)
+    console.log('prev state', state)
+    console.log('action', action)
+    console.log('next state', newState)
+    console.groupEnd()
+
+    return newState
+  }
+
+  const getError = <FieldName extends keyof Values>(
+    field: FieldName,
+    values: Values,
+    cachedValues: { [key in keyof Values]?: Values[key] },
+  ) => {
+    const validate = fieldMetaInfo[field].validate
+    const error = validate ? validate(cachedValues[field] ?? values[field], { ...values, ...cachedValues }) : null
+
+    console.log('calucate error for field', field, values, cachedValues, error)
+    return error
+  }
+
   const FormContextProvider: React.FC<FormProps<Values>> = ({ children, values, setValue }) => {
-    const [state, dispatch] = React.useReducer(reducer, initialProviderState)
+    const [state, dispatch] = React.useReducer(reducerWithLog, initialProviderState)
 
-    const register = React.useCallback((field: keyof Values) => {
-      const validate = fieldMetaInfo[field].validate
-      const error = validate ? validate(values[field], values) : null
+    const runValidations = React.useCallback(
+      (
+        values: Values,
+        visible: { [key in keyof Values]?: true },
+        cachedValues: { [key in keyof Values]?: Values[key] },
+      ) => {
+        const errors = Object.keys(visible)
+          .map((field) => field as keyof Values)
+          .reduce((errors: { [key in keyof Values]?: string }, field) => {
+            const error = getError(field, values, cachedValues)
 
-      dispatch({ type: 'register', field, error: typeof error === 'string' ? error : null })
-    }, [])
+            return typeof error === 'string' ? { ...errors, [field]: error } : errors
+          }, {})
+
+        dispatch({ type: 'set_errors', errors })
+      },
+      [values, state.visible, state.cachedValues],
+    )
+
+    const register = React.useCallback(
+      (field: keyof Values) => {
+        console.log('register field', field)
+        dispatch({ type: 'register', field })
+      },
+      [values],
+    )
+
+    const unregister = (field: keyof Values) => {
+      dispatch({ type: 'unregister', field })
+      return
+    }
+
+    const setFieldValue = React.useCallback(
+      <FieldName extends keyof Values>(field: FieldName, value: Values[FieldName]): void => {
+        setValue(field, value)
+
+        if (!state.touched[field]) {
+          dispatch({ type: 'touch_field', field })
+        }
+
+        if (state.cachedValues[field]) {
+          dispatch({ type: 'unset_cached_value', field })
+        }
+      },
+      [values, state.visible, state.cachedValues, state.touched],
+    )
+
+    const setCachedFieldValue = React.useCallback(
+      <FieldName extends keyof Values>(field: FieldName, value: Values[FieldName]): void => {
+        dispatch({ type: 'set_cached_value', field, value })
+        runValidations(values, state.visible, { ...state.cachedValues, [field]: value })
+      },
+      [values, state.visible, state.cachedValues],
+    )
+
+    const commitFieldValue = <FieldName extends keyof Values>(field: FieldName): void => {
+      if (field in state.cachedValues) {
+        const value = state.cachedValues[field] as Values[FieldName]
+        setFieldValue(field, value)
+        dispatch({ type: 'unset_cached_value', field })
+      }
+
+      dispatch({ type: 'touch_field', field })
+    }
 
     const context = {
       ...state,
       values,
-      setValue,
       register,
-      unregister: (field: keyof Values) => {
-        dispatch({ type: 'unregister', field })
-        return
-      },
+      unregister,
+      setFieldValue,
+      setCachedFieldValue,
+      commitFieldValue,
     }
+
+    React.useEffect(() => {
+      console.log('run validations on changed values', values, state.visible, state.cachedValues)
+      runValidations(values, state.visible, state.cachedValues)
+    }, [values, state.visible, state.cachedValues])
 
     return <Provider value={context}>{children}</Provider>
   }
 
-  const useField = <FieldName extends keyof Values>(
-    name: FieldName,
-  ): { value: Values[FieldName]; error?: string; setValue: (value: Values[FieldName]) => void } => {
+  const useField = <FieldName extends keyof Values>(name: FieldName): UseFieldProps<Values, FieldName> => {
     const context = React.useContext(ContextFactory)
 
     if (!context) throw new Error("Couldn't find website context provider")
@@ -87,15 +212,34 @@ export default <Values extends object>(
     }, [])
 
     const setValue = (value: Values[FieldName]) => {
-      context.setValue(name, value)
+      context.setFieldValue(name, value)
+    }
+
+    const setCachedValue = (value: Values[FieldName]) => {
+      context.setCachedFieldValue(name, value)
+    }
+
+    const commitValue = () => {
+      context.commitFieldValue(name)
     }
 
     return {
-      value: context.values[name],
+      value: context.cachedValues[name] ?? context.values[name],
       error: context.errors[name],
+      isTouched: context.touched[name] === true,
       setValue,
+      setCachedValue,
+      commitValue,
     }
   }
 
-  return { FormContextProvider, useField }
+  const useFormContext = () => {
+    const context = React.useContext(ContextFactory)
+
+    if (!context) throw new Error("Couldn't find website context provider")
+
+    return context
+  }
+
+  return { FormContextProvider, useField, useFormContext }
 }

@@ -9,9 +9,11 @@ export interface ProviderState<Values extends object> {
 
 export interface FormContext<Values extends object> extends ProviderState<Values> {
   values: Values
-  setValue: <Field extends keyof Values>(name: Field, value: Values[Field]) => void
   register: (name: keyof Values) => void
   unregister: (name: keyof Values) => void
+  setFieldValue: <FieldName extends keyof Values>(name: FieldName, value: Values[FieldName]) => void
+  setCachedFieldValue: <FieldName extends keyof Values>(name: FieldName, value: Values[FieldName]) => void
+  commitFieldValue: <FieldName extends keyof Values>(name: FieldName) => void
 }
 
 export type FieldMetaInfo<FieldValue, Values> = {
@@ -21,5 +23,14 @@ export type FieldMetaInfo<FieldValue, Values> = {
 export interface FormProps<Values> {
   children: React.ReactNode
   values: Values
-  setValue: <Field extends keyof Values>(name: Field, value: Values[Field]) => void
+  setValue: <FieldName extends keyof Values>(name: FieldName, value: Values[FieldName]) => void
+}
+
+export interface UseFieldProps<Values, FieldName extends keyof Values> {
+  value: Values[FieldName]
+  error?: string
+  setValue: (value: Values[FieldName]) => void
+  setCachedValue: (value: Values[FieldName]) => void
+  commitValue: () => void
+  isTouched: boolean
 }

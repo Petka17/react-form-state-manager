@@ -33,7 +33,6 @@ module.exports = {
     'react/display-name': 'off',
     'simple-import-sort/sort':  'error',
     'react-hooks/rules-of-hooks': 'error', // Checks rules of Hooks
-    'react-hooks/exhaustive-deps': 'warn' // Checks effect dependencies
   },
   overrides: [
     // Override some TypeScript rules just for .js files
