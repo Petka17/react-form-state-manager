@@ -4,14 +4,16 @@
     "target": "esnext",
     "jsx": "react",
     "lib": ["dom", "esnext"],
+    "noEmit": false,
+    "declaration": true,
     "strict": true,
-    "noEmit": true,
-    "isolatedModules": true,
     "noUnusedLocals": false,
+    "isolatedModules": true,
     "esModuleInterop": true,
 
     "baseUrl": "./src",
-    "typeRoots": ["types"]
+    "typeRoots": ["types"],
+    "outDir": "dist"
   },
   "exclude": ["node_modules", "public", ".cache"]
 }
