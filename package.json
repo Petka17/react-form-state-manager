@@ -1,5 +1,5 @@
 {
-  "name": "react-form-context",
+  "name": "react-form-state-manager",
   "version": "1.0.0",
   "description": "Library that should simplify development of complex forms",
   "main": "./dist/index.js",
