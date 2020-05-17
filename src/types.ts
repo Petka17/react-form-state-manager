@@ -18,6 +18,7 @@ export interface FormContext<Values extends object> extends ProviderState<Values
 
 export type FieldMetaInfo<FieldValue, Values> = {
   validate?: (value: FieldValue, values: Values) => boolean | string
+  hide?: (values: Values) => boolean
 }
 
 export interface FormProps<Values> {

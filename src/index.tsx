@@ -13,12 +13,6 @@ interface Unregister<FieldName> {
   field: FieldName
 }
 
-interface SetError<FieldName> {
-  type: 'set_error'
-  field: FieldName
-  error: string
-}
-
 interface SetErrors<Values> {
   type: 'set_errors'
   errors: { [key in keyof Values]?: string }
@@ -43,7 +37,6 @@ interface UnsetSachedValue<FieldName> {
 type Action<Values> =
   | Register<keyof Values>
   | Unregister<keyof Values>
-  | SetError<keyof Values>
   | SetErrors<Values>
   | TouchField<keyof Values>
   | SetCachedValue<Values, keyof Values>
@@ -56,7 +49,12 @@ export default <Values extends object>(
 
   const Provider = ContextFactory.Provider
 
-  const initialProviderState: ProviderState<Values> = { touched: {}, errors: {}, visible: {}, cachedValues: {} }
+  const initialProviderState: ProviderState<Values> = {
+    touched: {},
+    errors: {},
+    visible: {},
+    cachedValues: {},
+  }
 
   const reducer = (state: ProviderState<Values>, action: Action<Values>): ProviderState<Values> => {
     switch (action.type) {
@@ -70,8 +68,6 @@ export default <Values extends object>(
         delete errors[action.field]
         return { ...state, visible, errors }
       }
-      case 'set_error':
-        return { ...state, errors: { ...state.errors, [action.field]: action.error } }
       case 'set_errors':
         return { ...state, errors: action.errors }
       case 'touch_field':
@@ -100,15 +96,12 @@ export default <Values extends object>(
     return newState
   }
 
-  const getError = <FieldName extends keyof Values>(
-    field: FieldName,
-    values: Values,
-    cachedValues: { [key in keyof Values]?: Values[key] },
-  ) => {
+  const getError = (field: keyof Values, values: Values, cachedValues: { [key in keyof Values]?: Values[key] }) => {
     const validate = fieldMetaInfo[field].validate
     const error = validate ? validate(cachedValues[field] ?? values[field], { ...values, ...cachedValues }) : null
 
     console.log('calucate error for field', field, values, cachedValues, error)
+
     return error
   }
 
@@ -194,7 +187,7 @@ export default <Values extends object>(
   const useField = <FieldName extends keyof Values>(name: FieldName): UseFieldProps<Values, FieldName> => {
     const context = React.useContext(ContextFactory)
 
-    if (!context) throw new Error("Couldn't find website context provider")
+    if (!context) throw new Error("Couldn't find context provider")
 
     const setValue = (value: Values[FieldName]) => {
       context.setFieldValue(name, value)
@@ -229,7 +222,7 @@ export default <Values extends object>(
   const useFormContext = () => {
     const context = React.useContext(ContextFactory)
 
-    if (!context) throw new Error("Couldn't find website context provider")
+    if (!context) throw new Error("Couldn't find website provider")
 
     return context
   }
