@@ -7,9 +7,6 @@ export class UnreachableError extends Error {
   }
 }
 
-export const getObjectKeys = <T extends string, K>(obj: { [key in T]?: K }): T[] =>
-  Object.keys(obj).map((key) => key as T)
-
 export const useUpdateEffect = (fn: Function, deps: DependencyList) => {
   const didMountRef = React.useRef(false)
 
@@ -18,4 +15,3 @@ export const useUpdateEffect = (fn: Function, deps: DependencyList) => {
     else didMountRef.current = true
   }, deps)
 }
-

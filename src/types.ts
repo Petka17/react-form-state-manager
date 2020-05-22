@@ -1,6 +1,6 @@
 import React from 'react'
 
-export interface ProviderState<Values extends object, CalculatedValues> {
+export interface ProviderState<Values, CalculatedValues> {
   cachedValues: { [key in keyof Values]?: Values[key] }
   errors: { [key in keyof Values]?: string }
   touched: { [key in keyof Values]?: true }
@@ -8,11 +8,7 @@ export interface ProviderState<Values extends object, CalculatedValues> {
   calculatedValues?: CalculatedValues
 }
 
-export interface FormContext<
-  Values extends object,
-  ExtraValues extends object | undefined,
-  CalculatedValues extends object
-> extends ProviderState<Values, CalculatedValues> {
+export interface FormContext<Values, ExtraValues, CalculatedValues> extends ProviderState<Values, CalculatedValues> {
   values: Values
   extraValues: ExtraValues
   calculatedValues?: CalculatedValues
