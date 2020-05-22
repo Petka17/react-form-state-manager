@@ -1,7 +1,7 @@
 import React from 'react'
 
 import { UnreachableError } from './common'
-import { ProviderState } from './types'
+import { FormLocalState } from './types'
 
 interface Register<FieldName> {
   type: 'register'
@@ -53,7 +53,7 @@ export const useFormState = <Values, ExtraValues, CalculatedValues>(
   extraValues: ExtraValues,
   calculate?: (values: Values, extraValues: ExtraValues) => CalculatedValues,
 ) => {
-  const initialProviderState: ProviderState<Values, CalculatedValues> = {
+  const initialProviderState: FormLocalState<Values, CalculatedValues> = {
     cachedValues: {},
     errors: {},
     touched: {},
@@ -61,9 +61,9 @@ export const useFormState = <Values, ExtraValues, CalculatedValues>(
   }
 
   const reducer = (
-    state: ProviderState<Values, CalculatedValues>,
+    state: FormLocalState<Values, CalculatedValues>,
     action: Action<Values, CalculatedValues>,
-  ): ProviderState<Values, CalculatedValues> => {
+  ): FormLocalState<Values, CalculatedValues> => {
     switch (action.type) {
       case 'register': {
         return { ...state, visible: { ...state.visible, [action.field]: true } }
@@ -94,9 +94,9 @@ export const useFormState = <Values, ExtraValues, CalculatedValues>(
   }
 
   const reducerWithLog = (
-    state: ProviderState<Values, CalculatedValues>,
+    state: FormLocalState<Values, CalculatedValues>,
     action: Action<Values, CalculatedValues>,
-  ): ProviderState<Values, CalculatedValues> => {
+  ): FormLocalState<Values, CalculatedValues> => {
     const newState = reducer(state, action)
 
     console.groupCollapsed(`action ${action.type}`)

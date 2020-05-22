@@ -2,7 +2,7 @@ import React from 'react'
 
 import { useUpdateEffect } from './common'
 import { useFormState } from './state'
-import { FieldMetaInfo, FormContext, FormProps, UseFieldProps } from './types'
+import { FieldMetaInfo, FormContext, FormContextProps, UseFieldProps } from './types'
 
 export default <Values, ExtraValues, CalculatedValues>(
   fieldMetaInfo: { [key in keyof Values]: FieldMetaInfo<Values[key], Values, ExtraValues, CalculatedValues> },
@@ -28,7 +28,7 @@ export default <Values, ExtraValues, CalculatedValues>(
     return error
   }
 
-  const FormContextProvider: React.FC<FormProps<Values, ExtraValues, CalculatedValues>> = ({
+  const FormContextProvider: React.FC<FormContextProps<Values, ExtraValues, CalculatedValues>> = ({
     children,
     values,
     setValue,
@@ -41,6 +41,14 @@ export default <Values, ExtraValues, CalculatedValues>(
 
     // --- CALLBACKS --- //
 
+    const register = (field: keyof Values) => {
+      dispatch({ type: 'register', field })
+    }
+
+    const unregister = (field: keyof Values) => {
+      dispatch({ type: 'unregister', field })
+    }
+
     const runValidations = React.useCallback(() => {
       const errors = Object.keys(state.visible)
         .map((field) => field as keyof Values)
@@ -51,14 +59,6 @@ export default <Values, ExtraValues, CalculatedValues>(
 
       dispatch({ type: 'set_errors', errors })
     }, [values, state.visible, state.cachedValues, extraValues, state.calculatedValues])
-
-    const register = (field: keyof Values) => {
-      dispatch({ type: 'register', field })
-    }
-
-    const unregister = (field: keyof Values) => {
-      dispatch({ type: 'unregister', field })
-    }
 
     const setFieldValue = <FieldName extends keyof Values>(
       field: FieldName,
@@ -176,7 +176,7 @@ export default <Values, ExtraValues, CalculatedValues>(
     }
   }
 
-  const useFormContext = () => {
+  const useFormContext = (): FormContext<Values, ExtraValues, CalculatedValues> => {
     const context = React.useContext(ContextFactory)
 
     if (!context) throw new Error("Couldn't find website provider")
