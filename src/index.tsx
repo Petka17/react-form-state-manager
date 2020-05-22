@@ -2,7 +2,7 @@ import React from 'react'
 
 import { useUpdateEffect } from './common'
 import { useFormState } from './state'
-import { FieldMetaInfo, FormContext, FormContextProps, UseFieldProps } from './types'
+import { FieldMetaInfo, FormContext, FormContextProps, isRenderFn, UseFieldProps } from './types'
 
 export default <Values, ExtraValues, CalculatedValues>(
   fieldMetaInfo: { [key in keyof Values]: FieldMetaInfo<Values[key], Values, ExtraValues, CalculatedValues> },
@@ -15,8 +15,8 @@ export default <Values, ExtraValues, CalculatedValues>(
     field: keyof Values,
     values: Values,
     cachedValues: { [key in keyof Values]?: Values[key] },
-    extraValues: ExtraValues,
     calculatedValues?: CalculatedValues,
+    extraValues?: ExtraValues,
   ) => {
     const validate = fieldMetaInfo[field].validate
     const error = validate
@@ -34,6 +34,7 @@ export default <Values, ExtraValues, CalculatedValues>(
     setValue,
     extraValues,
     calculate,
+    submitForm,
   }) => {
     // --- LOCAL STATE --- //
 
@@ -50,61 +51,86 @@ export default <Values, ExtraValues, CalculatedValues>(
     }
 
     const runValidations = React.useCallback(() => {
+      console.log('run validation', values, state, extraValues)
       const errors = Object.keys(state.visible)
         .map((field) => field as keyof Values)
         .reduce((errors: { [key in keyof Values]?: string }, field) => {
-          const error = getError(field, values, state.cachedValues, extraValues, state.calculatedValues)
+          const error = getError(field, values, state.cachedValues, state.calculatedValues, extraValues)
           return typeof error === 'string' ? { ...errors, [field]: error } : errors
         }, {})
 
       dispatch({ type: 'set_errors', errors })
     }, [values, state.visible, state.cachedValues, extraValues, state.calculatedValues])
 
-    const setFieldValue = <FieldName extends keyof Values>(
-      field: FieldName,
-      value: Values[FieldName],
-      runEffects = true,
-    ): void => {
-      setValue(field, value)
+    const setFieldValue = React.useCallback(
+      <FieldName extends keyof Values>(field: FieldName, value: Values[FieldName], runEffects = true): void => {
+        setValue(field, value)
 
-      if (!state.touched[field]) dispatch({ type: 'touch_field', field })
+        if (!state.touched[field]) dispatch({ type: 'touch_field', field })
 
-      if (state.cachedValues[field]) dispatch({ type: 'unset_cached_value', field })
+        if (state.cachedValues[field]) dispatch({ type: 'unset_cached_value', field })
 
-      if (!runEffects) return
+        console.log('run effects ', runEffects, fieldMetaInfo[field])
+        if (!runEffects) return
 
-      const effects = fieldMetaInfo[field].effects
+        const effects = fieldMetaInfo[field].effects
 
-      if (effects) {
-        Object.keys(effects)
-          .map((field) => field as keyof Values)
-          .forEach((effectedField) => {
-            const effect = effects[effectedField]
-            if (effect) {
-              const effectedValue = effect(value)
-              setFieldValue(effectedField, effectedValue, false)
-            }
-          })
-      }
-    }
+        if (effects) {
+          console.log('runEffects', effects)
+          Object.keys(effects)
+            .map((field) => field as keyof Values)
+            .forEach((effectedField) => {
+              const effect = effects[effectedField]
+              if (effect) {
+                const effectedValue = effect(value)
+                setFieldValue(effectedField, effectedValue, false)
+              }
+            })
+        }
+      },
+      [state.touched, state.cachedValues],
+    )
 
     const setCachedFieldValue = <FieldName extends keyof Values>(field: FieldName, value: Values[FieldName]): void => {
       dispatch({ type: 'set_cached_value', field, value })
     }
 
-    const commitFieldValue = <FieldName extends keyof Values>(field: FieldName): void => {
-      if (field in state.cachedValues) {
-        const value = state.cachedValues[field] as Values[FieldName]
-        setFieldValue(field, value)
-        dispatch({ type: 'unset_cached_value', field })
-      }
+    const commitFieldValue = React.useCallback(
+      <FieldName extends keyof Values>(field: FieldName): void => {
+        if (field in state.cachedValues) {
+          const value = state.cachedValues[field] as Values[FieldName]
+          setFieldValue(field, value)
+        }
+      },
+      [state.touched, state.cachedValues],
+    )
 
-      dispatch({ type: 'touch_field', field })
-    }
+    const processSubmit = React.useCallback(
+      (event: React.FormEvent) => {
+        if (!submitForm) return
+
+        event.preventDefault()
+
+        Object.keys(state.cachedValues)
+          .map((field) => field as keyof Values)
+          .forEach(commitFieldValue)
+
+        submitForm({ ...values, ...state.cachedValues })
+      },
+      [values, state.cachedValues],
+    )
 
     // --- EFFECTS --- //
 
     useUpdateEffect(runValidations, [values, state.cachedValues, extraValues])
+
+    // useUpdateEffect(() => {
+    //   const timer = setTimeout(runValidations, 100)
+
+    //   return () => {
+    //     clearTimeout(timer)
+    //   }
+    // }, [values, state.cachedValues, extraValues])
 
     React.useEffect(() => {
       if (calculate) {
@@ -134,9 +160,18 @@ export default <Values, ExtraValues, CalculatedValues>(
           setFieldValue,
           setCachedFieldValue,
           commitFieldValue,
+          processSubmit,
         }}
       >
-        {children}
+        {isRenderFn(children)
+          ? children({
+              values,
+              calculatedValues: state.calculatedValues,
+              extraValues,
+              errors: state.errors,
+              processSubmit,
+            })
+          : children}
       </Provider>
     )
   }

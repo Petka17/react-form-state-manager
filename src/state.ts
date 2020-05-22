@@ -99,7 +99,7 @@ export const useFormState = <Values, ExtraValues, CalculatedValues>(
   ): FormLocalState<Values, CalculatedValues> => {
     const newState = reducer(state, action)
 
-    console.groupCollapsed(`action ${action.type}`)
+    console.groupCollapsed(`action ${action.type} [${new Date().toLocaleTimeString()}]`)
     console.log('prev state', state)
     console.log('action', action)
     console.log('next state', newState)
