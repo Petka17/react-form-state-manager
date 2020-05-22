@@ -34,29 +34,38 @@ interface UnsetSachedValue<FieldName> {
   field: FieldName
 }
 
-type Action<Values> =
+interface UpdateCalculatedValues<CalculatedValues> {
+  type: 'update_calculated_values'
+  values: CalculatedValues
+}
+
+type Action<Values, CalculatedValues> =
   | Register<keyof Values>
   | Unregister<keyof Values>
   | SetErrors<Values>
   | TouchField<keyof Values>
   | SetCachedValue<Values, keyof Values>
   | UnsetSachedValue<keyof Values>
+  | UpdateCalculatedValues<CalculatedValues>
 
-export default <Values extends object>(
-  fieldMetaInfo: { [key in keyof Values]: FieldMetaInfo<Values[key], Values> },
+export default <Values extends object, ExtraValues extends object, CalculatedValues extends object>(
+  fieldMetaInfo: { [key in keyof Values]: FieldMetaInfo<Values[key], Values, ExtraValues, CalculatedValues> },
 ) => {
-  const ContextFactory = React.createContext<FormContext<Values> | null>(null)
+  const ContextFactory = React.createContext<FormContext<Values, ExtraValues, CalculatedValues> | null>(null)
 
   const Provider = ContextFactory.Provider
 
-  const initialProviderState: ProviderState<Values> = {
-    touched: {},
-    errors: {},
-    visible: {},
+  const initialProviderState: ProviderState<Values, CalculatedValues> = {
     cachedValues: {},
+    errors: {},
+    touched: {},
+    visible: {},
   }
 
-  const reducer = (state: ProviderState<Values>, action: Action<Values>): ProviderState<Values> => {
+  const reducer = (
+    state: ProviderState<Values, CalculatedValues>,
+    action: Action<Values, CalculatedValues>,
+  ): ProviderState<Values, CalculatedValues> => {
     switch (action.type) {
       case 'register': {
         return { ...state, visible: { ...state.visible, [action.field]: true } }
@@ -79,12 +88,17 @@ export default <Values extends object>(
         delete cachedValues[action.field]
         return { ...state, cachedValues }
       }
+      case 'update_calculated_values':
+        return { ...state, calculatedValues: action.values }
       default:
         throw new UnreachableError(action, 'Not all actions checked')
     }
   }
 
-  const reducerWithLog = (state: ProviderState<Values>, action: Action<Values>): ProviderState<Values> => {
+  const reducerWithLog = (
+    state: ProviderState<Values, CalculatedValues>,
+    action: Action<Values, CalculatedValues>,
+  ): ProviderState<Values, CalculatedValues> => {
     const newState = reducer(state, action)
 
     console.groupCollapsed(`action ${action.type}`)
@@ -96,19 +110,36 @@ export default <Values extends object>(
     return newState
   }
 
-  const getError = (field: keyof Values, values: Values, cachedValues: { [key in keyof Values]?: Values[key] }) => {
+  const getError = (
+    field: keyof Values,
+    values: Values,
+    cachedValues: { [key in keyof Values]?: Values[key] },
+    extraValues: ExtraValues,
+    calculatedValues?: CalculatedValues,
+  ) => {
     const validate = fieldMetaInfo[field].validate
-    const error = validate ? validate(cachedValues[field] ?? values[field], { ...values, ...cachedValues }) : null
+    const error = validate
+      ? validate(cachedValues[field] ?? values[field], { ...values, ...cachedValues, ...calculatedValues }, extraValues)
+      : null
 
     console.log('calucate error for field', field, values, cachedValues, error)
 
     return error
   }
 
-  const FormContextProvider: React.FC<FormProps<Values>> = ({ children, values, setValue }) => {
+  const FormContextProvider: React.FC<FormProps<Values, ExtraValues, CalculatedValues>> = ({
+    children,
+    values,
+    setValue,
+    extraValues,
+    calculate,
+  }) => {
     // --- LOCAL STATE --- //
 
-    const [state, dispatch] = React.useReducer(reducerWithLog, initialProviderState)
+    const [state, dispatch] = React.useReducer(reducerWithLog, {
+      ...initialProviderState,
+      calculatedValues: calculate ? calculate(values, extraValues) : undefined,
+    })
 
     // --- CALLBACKS --- //
 
@@ -116,12 +147,12 @@ export default <Values extends object>(
       const errors = Object.keys(state.visible)
         .map((field) => field as keyof Values)
         .reduce((errors: { [key in keyof Values]?: string }, field) => {
-          const error = getError(field, values, state.cachedValues)
+          const error = getError(field, values, state.cachedValues, extraValues, state.calculatedValues)
           return typeof error === 'string' ? { ...errors, [field]: error } : errors
         }, {})
 
       dispatch({ type: 'set_errors', errors })
-    }, [values, state.visible, state.cachedValues])
+    }, [values, state.visible, state.cachedValues, extraValues, state.calculatedValues])
 
     const register = (field: keyof Values) => {
       dispatch({ type: 'register', field })
@@ -131,12 +162,32 @@ export default <Values extends object>(
       dispatch({ type: 'unregister', field })
     }
 
-    const setFieldValue = <FieldName extends keyof Values>(field: FieldName, value: Values[FieldName]): void => {
+    const setFieldValue = <FieldName extends keyof Values>(
+      field: FieldName,
+      value: Values[FieldName],
+      runEffects = true,
+    ): void => {
       setValue(field, value)
 
       if (!state.touched[field]) dispatch({ type: 'touch_field', field })
 
       if (state.cachedValues[field]) dispatch({ type: 'unset_cached_value', field })
+
+      if (!runEffects) return
+
+      const effects = fieldMetaInfo[field].effects
+
+      if (effects) {
+        Object.keys(effects)
+          .map((field) => field as keyof Values)
+          .forEach((effectedField) => {
+            const effect = effects[effectedField]
+            if (effect) {
+              const effectedValue = effect(value)
+              setFieldValue(effectedField, effectedValue, false)
+            }
+          })
+      }
     }
 
     const setCachedFieldValue = <FieldName extends keyof Values>(field: FieldName, value: Values[FieldName]): void => {
@@ -155,7 +206,13 @@ export default <Values extends object>(
 
     // --- EFFECTS --- //
 
-    useUpdateEffect(runValidations, [values, state.cachedValues])
+    useUpdateEffect(runValidations, [values, state.cachedValues, extraValues])
+
+    React.useEffect(() => {
+      if (calculate) {
+        dispatch({ type: 'update_calculated_values', values: calculate(values, extraValues) })
+      }
+    }, [values, extraValues])
 
     React.useEffect(() => {
       const timer = setTimeout(runValidations, 100)
@@ -172,6 +229,8 @@ export default <Values extends object>(
         value={{
           ...state,
           values,
+          extraValues,
+          calculatedValues: state.calculatedValues,
           register,
           unregister,
           setFieldValue,
