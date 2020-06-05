@@ -48,14 +48,13 @@ export interface FormContext<Values, ExtraValues, CalculatedValues> extends Form
   setFieldValue: <FieldName extends keyof Values>(name: FieldName, value: Values[FieldName]) => void
   setCachedFieldValue: <FieldName extends keyof Values>(name: FieldName, value: Values[FieldName]) => void
   commitFieldValue: <FieldName extends keyof Values>(name: FieldName) => void
-  processSubmit: (event: React.FormEvent) => void
 }
 
-export interface UseFieldProps<Values, FieldName extends keyof Values> {
-  value: Values[FieldName]
+export interface FieldProps<Value> {
+  value: Value
   error?: string
-  setValue: (value: Values[FieldName]) => void
-  setCachedValue: (value: Values[FieldName]) => void
+  setValue: (value: Value) => void
+  setCachedValue: (value: Value) => void
   commitValue: () => void
   isTouched: boolean
 }

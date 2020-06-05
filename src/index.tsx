@@ -2,11 +2,15 @@ import React from 'react'
 
 import { useUpdateEffect } from './common'
 import { useFormState } from './state'
-import { FieldMetaInfo, FormContext, FormContextProps, isRenderFn, UseFieldProps } from './types'
+import { FieldMetaInfo, FieldProps, FormContext, FormContextProps, isRenderFn } from './types'
 
 export default <Values, ExtraValues, CalculatedValues>(
   fieldMetaInfo: { [key in keyof Values]: FieldMetaInfo<Values[key], Values, ExtraValues, CalculatedValues> },
-) => {
+): {
+  FormContextProvider: React.FC<FormContextProps<Values, ExtraValues, CalculatedValues>>
+  useField: <FieldName extends keyof Values>(name: FieldName) => FieldProps<Values[FieldName]>
+  useFormContext: () => FormContext<Values, ExtraValues, CalculatedValues>
+} => {
   const ContextFactory = React.createContext<FormContext<Values, ExtraValues, CalculatedValues> | null>(null)
 
   const Provider = ContextFactory.Provider
@@ -22,8 +26,6 @@ export default <Values, ExtraValues, CalculatedValues>(
     const error = validate
       ? validate(cachedValues[field] ?? values[field], { ...values, ...cachedValues, ...calculatedValues }, extraValues)
       : null
-
-    console.log('calucate error for field', field, values, cachedValues, error)
 
     return error
   }
@@ -51,7 +53,6 @@ export default <Values, ExtraValues, CalculatedValues>(
     }
 
     const runValidations = React.useCallback(() => {
-      console.log('run validation', values, state, extraValues)
       const errors = Object.keys(state.visible)
         .map((field) => field as keyof Values)
         .reduce((errors: { [key in keyof Values]?: string }, field) => {
@@ -70,13 +71,11 @@ export default <Values, ExtraValues, CalculatedValues>(
 
         if (state.cachedValues[field]) dispatch({ type: 'unset_cached_value', field })
 
-        console.log('run effects ', runEffects, fieldMetaInfo[field])
         if (!runEffects) return
 
         const effects = fieldMetaInfo[field].effects
 
         if (effects) {
-          console.log('runEffects', effects)
           Object.keys(effects)
             .map((field) => field as keyof Values)
             .forEach((effectedField) => {
@@ -100,6 +99,8 @@ export default <Values, ExtraValues, CalculatedValues>(
         if (field in state.cachedValues) {
           const value = state.cachedValues[field] as Values[FieldName]
           setFieldValue(field, value)
+        } else {
+          dispatch({ type: 'touch_field', field })
         }
       },
       [state.touched, state.cachedValues],
@@ -107,9 +108,9 @@ export default <Values, ExtraValues, CalculatedValues>(
 
     const processSubmit = React.useCallback(
       (event: React.FormEvent) => {
-        if (!submitForm) return
-
         event.preventDefault()
+
+        if (!submitForm) return
 
         Object.keys(state.cachedValues)
           .map((field) => field as keyof Values)
@@ -149,34 +150,35 @@ export default <Values, ExtraValues, CalculatedValues>(
     // --- RENDERING --- //
 
     return (
-      <Provider
-        value={{
-          ...state,
-          values,
-          extraValues,
-          calculatedValues: state.calculatedValues,
-          register,
-          unregister,
-          setFieldValue,
-          setCachedFieldValue,
-          commitFieldValue,
-          processSubmit,
-        }}
-      >
-        {isRenderFn(children)
-          ? children({
-              values,
-              calculatedValues: state.calculatedValues,
-              extraValues,
-              errors: state.errors,
-              processSubmit,
-            })
-          : children}
-      </Provider>
+      <form onSubmit={processSubmit}>
+        <Provider
+          value={{
+            ...state,
+            values,
+            extraValues,
+            calculatedValues: state.calculatedValues,
+            register,
+            unregister,
+            setFieldValue,
+            setCachedFieldValue,
+            commitFieldValue,
+          }}
+        >
+          {isRenderFn(children)
+            ? children({
+                values,
+                calculatedValues: state.calculatedValues,
+                extraValues,
+                errors: state.errors,
+                processSubmit,
+              })
+            : children}
+        </Provider>
+      </form>
     )
   }
 
-  const useField = <FieldName extends keyof Values>(name: FieldName): UseFieldProps<Values, FieldName> => {
+  const useField = <FieldName extends keyof Values>(name: FieldName): FieldProps<Values[FieldName]> => {
     const context = React.useContext(ContextFactory)
 
     if (!context) throw new Error("Couldn't find context provider")
